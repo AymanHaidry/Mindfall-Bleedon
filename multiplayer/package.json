@@ -1,0 +1,15 @@
+{
+  "name": "bleedon-server",
+  "version": "1.0.0",
+  "description": "Bleedon multiplayer WebSocket server",
+  "main": "bleedon-server.js",
+  "scripts": {
+    "start": "node bleedon-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

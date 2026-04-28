@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bleedon — Multiplayer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --red:    #E8162C;
+  --ember:  #FF6B35;
+  --acid:   #C8F135;
+  --ice:    #78E8FF;
+  --plasma: #BF5FFF;
+  --void:   #08090D;
+  --slate:  #0F1219;
+  --steel:  #1C2333;
+  --steel2: #243040;
+  --ghost:  #3A4A6A;
+  --mist:   #8A9BBF;
+  --text:   #E8EDF8;
+  /* Player colours — up to 4 */
+  --p0: #E8162C;
+  --p1: #C8F135;
+  --p2: #78E8FF;
+  --p3: #BF5FFF;
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+body{
+  font-family:'DM Mono',monospace;
+  background:var(--void);
+  color:var(--text);
+  height:100vh;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+/* CRT */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.1) 2px,rgba(0,0,0,.1) 4px);
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9989;
+  background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.5) 100%);
+}
+.crt-scan{position:fixed;left:0;right:0;height:2px;background:rgba(200,241,53,.04);animation:scan 8s linear infinite;pointer-events:none;z-index:9988;}
+@keyframes scan{0%{top:-2px}100%{top:100vh}}
+
+/* ── TOP NAV ── */
+#top-nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;height:50px;
+  background:rgba(8,9,13,.98);
+  border-bottom:1px solid var(--ghost);
+  flex-shrink:0;position:relative;z-index:50;
+}
+.tn-brand{display:flex;flex-direction:column;}
+.tn-company{font-size:8px;letter-spacing:3px;color:var(--ghost);}
+.tn-game{font-family:'Bebas Neue',sans-serif;font-size:19px;color:var(--red);letter-spacing:2px;line-height:1;}
+.tn-center{display:flex;align-items:center;gap:16px;}
+.tn-room{
+  font-family:'Bebas Neue',sans-serif;font-size:15px;
+  letter-spacing:4px;color:var(--acid);
+  background:rgba(200,241,53,.06);
+  border:1px solid rgba(200,241,53,.2);
+  padding:3px 12px;
+}
+.tn-mode{
+  font-size:9px;letter-spacing:2px;padding:3px 10px;
+  border:1px solid currentColor;
+}
+.mode-coop{color:var(--acid);}
+.mode-pvp{color:var(--red);}
+.tn-right{display:flex;gap:8px;align-items:center;}
+.tn-btn{
+  padding:4px 11px;border:1px solid var(--ghost);color:var(--mist);
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;
+  cursor:pointer;background:transparent;transition:all .18s;
+}
+.tn-btn:hover{border-color:var(--acid);color:var(--acid);}
+.tn-btn.red:hover{border-color:var(--red);color:var(--red);}
+
+/* ── PLAYER PILLS (top bar) ── */
+#players-bar{
+  display:flex;align-items:center;gap:2px;
+  padding:0 16px;height:38px;
+  background:var(--slate);
+  border-bottom:1px solid var(--ghost);
+  flex-shrink:0;position:relative;z-index:49;
+  overflow-x:auto;
+}
+#players-bar::-webkit-scrollbar{height:2px;}
+#players-bar::-webkit-scrollbar-thumb{background:var(--ghost);}
+.player-pill{
+  display:flex;align-items:center;gap:7px;
+  padding:4px 12px;
+  border:1px solid transparent;
+  font-size:10px;letter-spacing:.5px;
+  flex-shrink:0;
+  transition:all .2s;
+}
+.player-pill.me{border-color:rgba(255,255,255,.15);}
+.pill-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.pill-dot.typing{animation:typing-pulse .4s ease infinite alternate;}
+@keyframes typing-pulse{from{opacity:.4;transform:scale(.8)}to{opacity:1;transform:scale(1.2)}}
+.pill-name{color:var(--text);}
+.pill-you{font-size:8px;color:var(--ghost);letter-spacing:1px;}
+.pill-hp{
+  font-size:9px;padding:1px 6px;
+  border:1px solid rgba(255,255,255,.1);
+  color:var(--mist);
+  display:none; /* shown in PvP */
+}
+.pill-hp.visible{display:block;}
+.pill-hp.warn{color:var(--ember);border-color:rgba(255,107,53,.3);}
+.pill-hp.danger{color:var(--red);border-color:rgba(232,22,44,.4);}
+.pill-offline{opacity:.4;}
+.pill-typing-label{font-size:8px;color:var(--ghost);letter-spacing:1px;}
+
+/* ── MAIN GRID ── */
+#main{
+  display:grid;
+  grid-template-columns:260px 1fr 220px;
+  flex:1;overflow:hidden;
+}
+
+/* ── LEFT: Offices + resources ── */
+#left{
+  border-right:1px solid var(--ghost);
+  overflow-y:auto;padding:10px;
+  display:flex;flex-direction:column;gap:8px;
+  background:rgba(8,9,13,.98);
+}
+#left::-webkit-scrollbar{width:3px;}
+#left::-webkit-scrollbar-thumb{background:var(--ghost);}
+.blk{border-left:2px solid transparent;padding:8px 10px;background:var(--slate);margin-bottom:6px;}
+.blk.healthy{border-left-color:var(--acid);}
+.blk.warning{border-left-color:var(--ember);}
+.blk.critical{border-left-color:var(--red);}
+.blk.offline{border-left-color:var(--ghost);opacity:.5;}
+.blk-label{font-size:8px;color:var(--ghost);letter-spacing:3px;margin-bottom:6px;border-bottom:1px solid rgba(58,74,106,.3);padding-bottom:4px;}
+.oc-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.oc-nm{font-size:11px;color:var(--text);}
+.oc-bg{font-size:8px;padding:1px 5px;letter-spacing:1px;border:1px solid currentColor;}
+.bg-on{color:var(--acid);}.bg-off{color:var(--ghost);}.bg-crit{color:var(--red);animation:blink .8s step-end infinite;}.bg-warn{color:var(--ember);}
+.br{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.bl2{font-size:8px;color:var(--ghost);width:34px;}
+.bt{flex:1;height:4px;background:var(--void);border:1px solid var(--ghost);overflow:hidden;}
+.bf{height:100%;transition:width .5s,background .5s;}
+.bf-hp{background:var(--acid);}.bf-hp.warn{background:var(--ember);}.bf-hp.crit{background:var(--red);}
+.bf-ht{background:linear-gradient(90deg,var(--ember),var(--red));}.bf-ld{background:var(--ice);opacity:.7;}
+.bn{font-size:8px;color:var(--mist);width:22px;text-align:right;}
+.oc-ext{font-size:9px;margin-top:3px;}
+.ext-t{color:var(--red);}.ext-c{color:var(--acid);}
+.res-row{display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px;}
+.res-lbl{color:var(--ghost);}.res-val{color:var(--text);}
+.cr-row{display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;}
+.cr-n{color:var(--text);}.cr-f{color:var(--acid);}
+.th-row{padding:3px 0;border-bottom:1px solid rgba(58,74,106,.2);font-size:9px;}
+.th-row:last-child{border:none;}
+.thr-id{color:var(--red);}.thr-nm{color:var(--ember);font-style:italic;}
+.thr-loc{color:var(--mist);font-size:8px;}.thr-h{color:var(--ghost);font-style:italic;}
+
+/* ── CENTRE: Shared terminal log + input ── */
+#centre{
+  display:flex;flex-direction:column;overflow:hidden;
+  background:rgba(8,9,13,.98);
+}
+#shared-log{
+  flex:1;overflow-y:auto;
+  padding:12px 16px;
+  font-size:12px;line-height:1.85;
+}
+#shared-log::-webkit-scrollbar{width:3px;}
+#shared-log::-webkit-scrollbar-thumb{background:var(--ghost);}
+
+.gl{display:flex;gap:8px;padding:1px 0;animation:fadeIn .15s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.gl-time{color:var(--ghost);font-size:10px;flex-shrink:0;}
+.gl-who{font-size:10px;flex-shrink:0;font-weight:500;}
+.gl-msg{}
+.gl-msg.info{color:#4a8a60;}
+.gl-msg.warn{color:var(--ember);}
+.gl-msg.danger{color:var(--red);}
+.gl-msg.success{color:var(--acid);}
+.gl-msg.sys{color:var(--ice);}
+.gl-msg.cmd{color:var(--text);}
+.gl-msg.pvp{color:var(--plasma);}
+.gl-msg.sep{color:var(--ghost);font-size:10px;}
+.gl-progress{color:var(--acid);letter-spacing:1px;}
+
+/* Typing indicator */
+#typing-area{
+  padding:4px 16px;
+  font-size:10px;color:var(--ghost);
+  min-height:22px;letter-spacing:.5px;
+  border-top:1px solid rgba(58,74,106,.2);
+}
+
+/* Input row */
+#input-area{
+  border-top:1px solid var(--ghost);
+  background:rgba(15,18,25,.98);
+  flex-shrink:0;
+}
+#hint-row{
+  padding:3px 14px;font-size:9px;color:var(--ghost);
+  border-bottom:1px solid rgba(58,74,106,.2);letter-spacing:.5px;
+}
+#hint-row span{color:var(--acid);margin-right:10px;}
+#pvp-hint{color:var(--plasma);margin-right:10px;}
+#inp-row{display:flex;align-items:center;padding:8px 14px;gap:10px;}
+#my-prompt{
+  font-family:'Bebas Neue',sans-serif;font-size:18px;
+  letter-spacing:2px;flex-shrink:0;
+}
+#cmd-inp{
+  flex:1;background:transparent;border:none;outline:none;
+  color:var(--acid);font-family:'DM Mono',monospace;font-size:13px;
+  caret-color:var(--acid);
+}
+#cmd-inp::placeholder{color:var(--ghost);}
+#inp-lock-msg{
+  font-size:10px;color:var(--ember);letter-spacing:1px;
+  display:none;padding:10px 14px;
+}
+
+/* ── RIGHT: Players panel ── */
+#right{
+  border-left:1px solid var(--ghost);
+  overflow-y:auto;padding:10px;
+  background:rgba(8,9,13,.98);
+}
+#right::-webkit-scrollbar{width:3px;}
+#right::-webkit-scrollbar-thumb{background:var(--ghost);}
+.rp-label{font-size:8px;color:var(--ghost);letter-spacing:3px;margin-bottom:8px;border-bottom:1px solid rgba(58,74,106,.3);padding-bottom:4px;}
+
+/* Player card (right panel) */
+.rp-card{
+  padding:10px;background:var(--slate);
+  margin-bottom:8px;
+  border-left:2px solid transparent;
+  transition:all .2s;
+}
+.rp-card.me-card{border-left-color:white;}
+.rp-card.offline-card{opacity:.4;}
+.rpc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.rpc-avatar{
+  width:28px;height:28px;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0;
+}
+.rpc-name{font-size:11px;color:var(--text);flex:1;}
+.rpc-you{font-size:8px;color:var(--ghost);letter-spacing:1px;}
+.rpc-host{font-size:8px;color:var(--ember);}
+.rpc-online{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.rpc-online.on{background:var(--acid);}
+.rpc-online.off{background:var(--ghost);}
+
+/* PvP: opponent HP bar */
+.rpc-hp-wrap{margin-top:4px;}
+.rpc-hp-label{font-size:8px;color:var(--ghost);margin-bottom:2px;letter-spacing:1px;}
+.rpc-hp-bar{height:3px;background:var(--void);border:1px solid var(--ghost);overflow:hidden;}
+.rpc-hp-fill{height:100%;background:var(--red);transition:width .5s;}
+.rpc-stat{font-size:9px;color:var(--mist);margin-top:3px;}
+
+/* Attack button (PvP) */
+.attack-btn{
+  width:100%;margin-top:6px;padding:5px;
+  background:transparent;border:1px solid rgba(232,22,44,.3);
+  color:var(--red);font-family:'DM Mono',monospace;font-size:9px;
+  letter-spacing:1px;cursor:pointer;transition:all .2s;
+  display:none;
+}
+.attack-btn.visible{display:block;}
+.attack-btn:hover{background:rgba(232,22,44,.1);}
+
+/* Attack modal */
+#attack-modal{
+  position:fixed;inset:0;z-index:600;
+  background:rgba(0,0,0,.85);
+  display:none;align-items:center;justify-content:center;
+}
+#attack-modal.show{display:flex;}
+.modal-card{
+  background:var(--slate);border:1px solid var(--red);
+  width:360px;
+}
+.modal-top{
+  background:var(--red);padding:12px 16px;
+  font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;
+}
+.modal-body{padding:20px;}
+.modal-label{font-size:9px;color:var(--ghost);letter-spacing:2px;margin-bottom:8px;}
+.attack-opts{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.attack-opt{
+  padding:10px 14px;background:var(--steel);border:1px solid var(--ghost);
+  cursor:pointer;transition:all .2s;
+}
+.attack-opt:hover{border-color:var(--red);background:rgba(232,22,44,.08);}
+.attack-opt.selected{border-color:var(--red);background:rgba(232,22,44,.12);}
+.ao-name{font-size:12px;color:var(--text);margin-bottom:3px;}
+.ao-desc{font-size:10px;color:var(--mist);}
+.ao-cost{font-size:9px;color:var(--ember);margin-top:2px;}
+.modal-btns{display:flex;gap:8px;}
+.modal-cancel{
+  flex:1;padding:10px;background:transparent;border:1px solid var(--ghost);
+  color:var(--mist);font-family:'DM Mono',monospace;font-size:11px;
+  letter-spacing:1px;cursor:pointer;transition:all .2s;
+}
+.modal-cancel:hover{border-color:var(--mist);}
+.modal-fire{
+  flex:1;padding:10px;background:var(--red);border:none;
+  color:white;font-family:'Bebas Neue',sans-serif;font-size:18px;
+  letter-spacing:3px;cursor:pointer;transition:all .2s;
+}
+.modal-fire:hover{background:var(--ember);}
+
+/* Incoming attack alert */
+#incoming-alert{
+  position:fixed;top:100px;left:50%;transform:translateX(-50%);
+  background:rgba(232,22,44,.15);border:1px solid var(--red);
+  padding:12px 24px;z-index:700;
+  font-size:12px;color:var(--red);letter-spacing:1px;
+  display:none;text-align:center;
+  animation:alert-in .3s cubic-bezier(.16,1,.3,1);
+}
+#incoming-alert.show{display:block;}
+@keyframes alert-in{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* PvP: my server HP in nav */
+#my-hp-display{
+  display:none;align-items:center;gap:8px;
+}
+#my-hp-display.visible{display:flex;}
+.mhp-label{font-size:8px;color:var(--ghost);letter-spacing:1px;}
+.mhp-bar{width:80px;height:6px;background:var(--void);border:1px solid var(--ghost);overflow:hidden;}
+.mhp-fill{height:100%;background:var(--acid);transition:width .5s,background .5s;}
+
+/* Override */
+#override-bar{height:3px;background:linear-gradient(90deg,var(--plasma),var(--red));display:none;box-shadow:0 0 10px var(--plasma);}
+#override-bar.active{display:block;animation:od 5s linear forwards;}
+@keyframes od{from{transform:scaleX(1)}to{transform:scaleX(0);transform-origin:left}}
+
+/* Death / victory overlays */
+#result-screen{
+  position:fixed;inset:0;z-index:9500;
+  display:none;align-items:center;justify-content:center;flex-direction:column;
+  background:rgba(0,0,0,.92);
+}
+#result-screen.show{display:flex;}
+#result-title{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(64px,12vw,120px);
+  letter-spacing:4px;line-height:.9;
+  text-align:center;margin-bottom:16px;
+  animation:res-in .8s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes res-in{from{opacity:0;transform:scale(1.3);filter:blur(20px)}to{opacity:1;transform:scale(1);filter:blur(0)}}
+#result-title.win{color:var(--acid);text-shadow:0 0 60px rgba(200,241,53,.5);}
+#result-title.lose{color:var(--red);text-shadow:0 0 60px rgba(232,22,44,.5);}
+#result-sub{font-size:14px;color:var(--mist);letter-spacing:3px;margin-bottom:40px;animation:fadeIn .8s ease .5s both;}
+#result-stats{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  max-width:500px;width:90%;border:1px solid var(--ghost);
+  animation:fadeIn .8s ease .8s both;margin-bottom:36px;
+}
+.rs-cell{padding:18px 20px;text-align:center;background:var(--slate);}
+.rs-val{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--text);line-height:1;margin-bottom:4px;}
+.rs-lbl{font-size:9px;color:var(--ghost);letter-spacing:2px;}
+.result-acts{display:flex;gap:12px;animation:fadeIn .8s ease 1s both;}
+.rbtn{
+  padding:12px 28px;font-family:'Bebas Neue',sans-serif;
+  font-size:20px;letter-spacing:3px;cursor:pointer;transition:all .2s;
+}
+.rbtn-p{background:var(--red);color:white;border:none;}
+.rbtn-p.win-btn{background:var(--acid);color:#000;}
+.rbtn-p:hover{background:var(--ember);transform:translateY(-2px);}
+.rbtn-s{background:transparent;border:1px solid var(--ghost);color:var(--mist);}
+.rbtn-s:hover{border-color:var(--text);color:var(--text);}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="crt-scan"></div>
+
+<!-- Incoming attack alert -->
+<div id="incoming-alert"></div>
+
+<!-- PvP Attack modal -->
+<div id="attack-modal">
+  <div class="modal-card">
+    <div class="modal-top">⚔ LAUNCH ATTACK</div>
+    <div class="modal-body">
+      <div class="modal-label">TARGET: <span id="modal-target-name" style="color:var(--red)">—</span></div>
+      <div class="modal-label" style="margin-top:12px">SELECT ATTACK TYPE</div>
+      <div class="attack-opts" id="attack-opts"></div>
+      <div class="modal-btns">
+        <button class="modal-cancel" onclick="closeAttackModal()">CANCEL</button>
+        <button class="modal-fire" onclick="fireAttack()">LAUNCH</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Result screen -->
+<div id="result-screen">
+  <div id="result-title">—</div>
+  <div id="result-sub">—</div>
+  <div id="result-stats">
+    <div class="rs-cell"><div class="rs-val" id="rs-up">00:00</div><div class="rs-lbl">UPTIME</div></div>
+    <div class="rs-cell"><div class="rs-val" id="rs-val">$0</div><div class="rs-lbl">FINAL VALUE</div></div>
+    <div class="rs-cell"><div class="rs-val" id="rs-usr">0</div><div class="rs-lbl">USERS</div></div>
+  </div>
+  <div class="result-acts">
+    <button class="rbtn rbtn-p" id="result-primary-btn" onclick="leaveToLobby()">BACK TO LOBBY</button>
+    <button class="rbtn rbtn-s" onclick="leaveToMenu()">MAIN MENU</button>
+  </div>
+</div>
+
+<!-- TOP NAV -->
+<div id="top-nav">
+  <div class="tn-brand">
+    <span class="tn-company">MINDFALL</span>
+    <span class="tn-game">BLEEDON</span>
+  </div>
+  <div class="tn-center">
+    <div class="tn-room" id="nav-room">------</div>
+    <div class="tn-mode mode-coop" id="nav-mode">CO-OP</div>
+    <div id="my-hp-display">
+      <span class="mhp-label">YOUR SERVER</span>
+      <div class="mhp-bar"><div class="mhp-fill" id="my-hp-fill" style="width:100%"></div></div>
+      <span style="font-size:10px;color:var(--mist)" id="my-hp-val">100%</span>
+    </div>
+  </div>
+  <div class="tn-right">
+    <div id="override-status" style="font-size:9px;color:var(--ghost);letter-spacing:1px">⚡ OVERRIDE 2</div>
+    <button class="tn-btn" onclick="triggerOverride()">⚡ OVERRIDE</button>
+    <button class="tn-btn red" onclick="confirmLeave()">✕ LEAVE</button>
+  </div>
+</div>
+
+<!-- Override drain bar -->
+<div id="override-bar"></div>
+
+<!-- PLAYER PILLS -->
+<div id="players-bar"></div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT: offices + crew + threats -->
+  <div id="left">
+    <div>
+      <div class="blk-label">// OFFICES</div>
+      <div id="g-offices"></div>
+    </div>
+    <div style="border:1px solid rgba(58,74,106,.3);padding:8px 10px;background:var(--slate)">
+      <div class="blk-label">// RESOURCES</div>
+      <div class="res-row"><span class="res-lbl">POWER</span><span class="res-val" id="rv-pw">100%</span></div>
+      <div class="res-row"><span class="res-lbl">HEAT</span><span class="res-val" id="rv-ht">0%</span></div>
+      <div class="res-row"><span class="res-lbl">VALUE</span><span class="res-val" id="rv-val">$1000</span></div>
+      <div class="res-row"><span class="res-lbl">USERS</span><span class="res-val" id="rv-usr">500</span></div>
+      <div class="res-row"><span class="res-lbl">SAT</span><span class="res-val" id="rv-sat">100%</span></div>
+    </div>
+    <div style="border:1px solid rgba(58,74,106,.3);padding:8px 10px;background:var(--slate)">
+      <div class="blk-label">// CREW</div>
+      <div id="g-crew"></div>
+    </div>
+    <div style="border:1px solid rgba(58,74,106,.3);padding:8px 10px;background:var(--slate)">
+      <div class="blk-label">// THREATS</div>
+      <div id="g-threats"><span style="color:var(--ghost);font-size:9px">System clear.</span></div>
+    </div>
+  </div>
+
+  <!-- CENTRE: shared log + input -->
+  <div id="centre">
+    <div id="shared-log"></div>
+    <div id="typing-area"></div>
+    <div id="input-area">
+      <div id="hint-row">
+        <span>status</span><span>scan</span><span>purge [id]</span>
+        <span>assign [crew] [office]</span><span>repair [office]</span>
+        <span>firewall on/off</span>
+        <span id="pvp-hint" style="display:none">attack [player]</span>
+      </div>
+      <div id="inp-row">
+        <span id="my-prompt" style="color:var(--red)">BLEEDON ▸</span>
+        <input id="cmd-inp" type="text" placeholder="enter command..." autocomplete="off" spellcheck="false"/>
+      </div>
+      <div id="inp-lock-msg">⚡ OVERRIDE ACTIVE — type fast</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: players -->
+  <div id="right">
+    <div class="rp-label">// PLAYERS</div>
+    <div id="rp-cards"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG — same server as lobby
+// ═══════════════════════════════════════
+const SERVER_URL = 'ws://localhost:3001';
+
+// ═══════════════════════════════════════
+// PARSE URL PARAMS
+// ═══════════════════════════════════════
+const params   = new URLSearchParams(location.search);
+const ROOM     = params.get('room') || 'DEMO01';
+const MODE     = params.get('mode') || 'coop';      // coop | pvp
+const P_RAW    = params.get('players') || '[]';
+let   PLAYERS  = [];
+try { PLAYERS = JSON.parse(decodeURIComponent(P_RAW)); } catch {}
+const MY_NAME  = params.get('name') || localStorage.getItem('bleedon_name') || 'Admin';
+const MY_ID    = params.get('id')   || localStorage.getItem('bleedon_id')   || 'local';
+
+// Persist identity
+localStorage.setItem('bleedon_name', MY_NAME);
+localStorage.setItem('bleedon_id',   MY_ID);
+
+// ═══════════════════════════════════════
+// PLAYER COLOURS
+// ═══════════════════════════════════════
+const P_COLORS = ['#E8162C','#C8F135','#78E8FF','#BF5FFF'];
+const P_AVATARS = ['🧑‍💻','👾','🤖','🦾'];
+
+function playerColor(idx) { return P_COLORS[idx % P_COLORS.length]; }
+function playerAvatar(idx){ return P_AVATARS[idx % P_AVATARS.length]; }
+
+// ═══════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════
+let G = {
+  tick: 0, running: true, gameover: false,
+  startTime: Date.now(),
+  power: 100, heat: 0,
+  companyValue: 1000, users: 500, satisfaction: 100, income: 5,
+  overrideCharges: 2,
+  offices: {
+    hq:  { name:'HQ',  label:'🏢 HQ',  health:100, load:30, heat:0, online:true, isolated:false, crew:{engineers:0,security:0,cooling:0}, critical:true  },
+    ops: { name:'OPS', label:'⚙ OPS', health:100, load:40, heat:0, online:true, isolated:false, crew:{engineers:0,security:0,cooling:0}, critical:false },
+    sec: { name:'SEC', label:'🛡 SEC', health:100, load:20, heat:0, online:true, isolated:false, crew:{engineers:0,security:0,cooling:0}, critical:false },
+  },
+  crew: {
+    engineers: { total:4, assigned:0 },
+    security:  { total:3, assigned:0 },
+    cooling:   { total:2, assigned:0 },
+  },
+  threats: [], nextId: 1,
+  firewallOn: false,
+  cmdHistory: [], cmdIdx: -1,
+  // PvP
+  myHp: 100,
+  opponents: {},  // id → { name, hp, value }
+  // Co-op turn
+  lastCmdBy: null,
+};
+
+// Threat name pools
+const T_NAMES = {
+  malware: ['HYDRA','PHANTOM','CIPHER','VENOM','WRAITH','SPECTER'],
+  ddos:    ['VORTEX','FLOOD','SURGE','TSUNAMI','TORRENT'],
+  worm:    ['SERPENT','MIMIC','ECHO','SPIDER','PARASITE'],
+};
+function tName(type){ const p=T_NAMES[type]||T_NAMES.malware; return p[Math.floor(Math.random()*p.length)]; }
+
+// ═══════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════
+let ws = null;
+let wsReady = false;
+let typingTimers = {};  // id → timer
+let onlineMap = {};     // id → bool
+let playerIndex = {};   // id → idx
+
+function connectWS() {
+  try {
+    ws = new WebSocket(SERVER_URL);
+    ws.onopen = () => {
+      wsReady = true;
+      ws.send(JSON.stringify({ type: 'rejoin_game', room: ROOM, id: MY_ID, name: MY_NAME }));
+      glog(`Connected to room ${ROOM}`, 'sys');
+    };
+    ws.onmessage = (e) => {
+      let m; try { m = JSON.parse(e.data); } catch { return; }
+      handleWS(m);
+    };
+    ws.onclose = () => { wsReady = false; glog('Connection lost. Reconnecting...', 'warn'); setTimeout(connectWS, 2000); };
+    ws.onerror = () => { glog('Server unreachable — running in solo demo mode', 'warn'); };
+  } catch { glog('Running in solo demo mode', 'sys'); }
+}
+
+function wsend(type, payload={}) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type, room: ROOM, from: MY_ID, fromName: MY_NAME, ...payload }));
+  }
+}
+
+function handleWS(m) {
+  switch(m.type) {
+
+    case 'game_event':
+      // Another player's command or event
+      if (m.from === MY_ID) return;
+      handleRemoteEvent(m.from, m.fromName, m.event, m.data);
+      break;
+
+    case 'player_left':
+      onlineMap[m.id] = false;
+      glog(`${m.name} disconnected`, 'warn');
+      renderPlayerCards();
+      renderPills();
+      break;
+
+    case 'player_joined':
+      onlineMap[m.id] = true;
+      renderPlayerCards();
+      renderPills();
+      break;
+
+    case 'ping':
+      wsend('pong');
+      break;
+  }
+}
+
+// ═══════════════════════════════════════
+// REMOTE EVENT HANDLER (co-op + pvp)
+// ═══════════════════════════════════════
+function handleRemoteEvent(fromId, fromName, event, data) {
+  switch(event) {
+
+    // ── Co-op: someone ran a command ──
+    case 'cmd_run': {
+      const color = playerColor(playerIndex[fromId] ?? 1);
+      glog(`▸ ${data.cmd}`, 'cmd', fromName, color);
+      // Apply the command effect locally so all players see same state
+      applyRemoteCmd(data.cmd, data.args);
+      break;
+    }
+
+    // ── Co-op: progress bar update ──
+    case 'progress': {
+      showProgress(data.label, data.pct);
+      break;
+    }
+
+    // ── Co-op: state sync from server (periodic) ──
+    case 'state_sync': {
+      // Merge authoritative state
+      if (data.offices) G.offices = { ...G.offices, ...data.offices };
+      if (data.threats) G.threats = data.threats;
+      if (typeof data.companyValue === 'number') G.companyValue = data.companyValue;
+      if (typeof data.users === 'number') G.users = data.users;
+      if (typeof data.satisfaction === 'number') G.satisfaction = data.satisfaction;
+      renderGame();
+      break;
+    }
+
+    // ── Typing indicator ──
+    case 'typing': {
+      showTyping(fromId, fromName, playerColor(playerIndex[fromId] ?? 1));
+      break;
+    }
+
+    // ── PvP: incoming attack ──
+    case 'attack': {
+      receiveAttack(fromName, data.type, data.severity, playerColor(playerIndex[fromId] ?? 1));
+      break;
+    }
+
+    // ── PvP: opponent state update ──
+    case 'opponent_update': {
+      G.opponents[fromId] = { name: fromName, hp: data.hp, value: data.value };
+      renderPlayerCards();
+      break;
+    }
+
+    // ── PvP: opponent eliminated ──
+    case 'opponent_dead': {
+      glog(`💀 ${fromName}'s server has collapsed!`, 'pvp');
+      G.opponents[fromId] = { name: fromName, hp: 0, value: 0 };
+      renderPlayerCards();
+      checkPvPWin();
+      break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+// TYPING INDICATOR
+// ═══════════════════════════════════════
+function broadcastTyping() {
+  wsend('game_event', { event: 'typing', data: {} });
+}
+
+function showTyping(id, name, color) {
+  clearTimeout(typingTimers[id]);
+  const area = document.getElementById('typing-area');
+  area.innerHTML = `<span style="color:${color}">${name}</span> <span style="color:var(--ghost)">is typing...</span>`;
+  typingTimers[id] = setTimeout(() => {
+    if (document.getElementById('typing-area').textContent.includes(name))
+      document.getElementById('typing-area').innerHTML = '';
+  }, 2000);
+  // Update pill
+  const pill = document.querySelector(`.pill-dot[data-id="${id}"]`);
+  if (pill) pill.classList.add('typing');
+}
+
+// ═══════════════════════════════════════
+// COMMANDS
+// ═══════════════════════════════════════
+const CMDS = {
+  help: () => {
+    glog('═══ COMMANDS ═══', 'sys');
+    const base = ['status','scan','trace','firewall on/off','assign [crew] [office]','unassign [crew] [office]','repair [office]','restart [office]','isolate [office]','purge [id]','overclock [office]','reroute [a] [b]','ddos-shield','override'];
+    const pvp  = ['attack [name]  — launch attack on opponent'];
+    [...base, ...(MODE==='pvp'?pvp:[])].forEach(c => glog('  '+c,'info'));
+  },
+  status: () => {
+    glog('═══ STATUS ═══','sys');
+    glog(`Value:$${G.companyValue}  Users:${G.users}  Sat:${G.satisfaction.toFixed(0)}%  Power:${G.power.toFixed(0)}%`,'info');
+    for(let k in G.offices){const o=G.offices[k];glog(`${k.toUpperCase()}: ${o.online?'ONLINE':'OFFLINE'} HP:${o.health.toFixed(0)} Load:${o.load.toFixed(0)} Heat:${o.heat.toFixed(0)}`,'info');}
+  },
+  scan: (a, fromRemote) => {
+    glog('[ SCANNING... ]','sys');
+    execProgress('SCAN', 5, () => {
+      let rev=0;
+      G.threats.forEach(t=>{if(t.hidden&&Math.random()<.5){t.hidden=false;rev++;}});
+      if(rev) glog(`${rev} threat(s) revealed!`,'warn');
+      const vis=G.threats.filter(t=>!t.hidden);
+      vis.forEach(t=>glog(`  [ID:${t.id}] ${t.type.toUpperCase()} "${t.name}" @ ${t.office.toUpperCase()} sev:${t.severity}`,'warn'));
+      if(!vis.length&&!rev) glog('System clear.','success');
+      G.power=Math.max(0,G.power-3);renderGame();
+    }, fromRemote);
+  },
+  trace: (a, fromRemote) => {
+    if(G.power<15){glog('Need 15 power.','danger');return;}
+    glog('[ DEEP TRACE... ]','sys');
+    execProgress('TRACE',8,()=>{
+      let c=0;G.threats.forEach(t=>{if(t.hidden){t.hidden=false;c++;}});
+      glog(`${c} threat(s) exposed.`,c?'warn':'success');
+      G.power-=15;renderGame();
+    }, fromRemote);
+  },
+  firewall: (a, fromRemote) => {
+    if(a[0]==='on'){G.firewallOn=true;glog('✓ FIREWALL ACTIVE','success');}
+    else if(a[0]==='off'){G.firewallOn=false;glog('Firewall off.','warn');}
+  },
+  purge: (a, fromRemote) => {
+    const id=parseInt(a[0]);if(isNaN(id)){glog('Usage: purge [id]','warn');return;}
+    const idx=G.threats.findIndex(t=>t.id===id);
+    if(idx===-1){glog(`No threat ID ${id}.`,'warn');return;}
+    const t=G.threats[idx];
+    if(t.hidden){glog('Cannot purge hidden threat.','warn');return;}
+    if(G.power<12){glog('Need 12 power.','danger');return;}
+    glog(`[ PURGE: ${t.name} ]`,'sys');
+    execProgress('PURGE',6,()=>{
+      if(Math.random()<(G.firewallOn?.86:.66)){
+        G.threats.splice(idx,1);
+        if(t.type==='ddos')G.offices[t.office].load=Math.max(30,G.offices[t.office].load-35);
+        glog(`✓ ${t.name} ELIMINATED.`,'success');
+      }else{glog(`✗ ${t.name} resisted. Retry.`,'danger');}
+      G.power-=12;renderGame();
+    }, fromRemote);
+  },
+  repair: (a, fromRemote) => {
+    const o=G.offices[a[0]];if(!o){glog('Unknown office.','warn');return;}
+    if(G.power<10){glog('Need 10 power.','danger');return;}
+    glog(`[ REPAIR ${a[0].toUpperCase()} ]`,'sys');
+    execProgress('REPAIR',5,()=>{
+      o.health=Math.min(100,o.health+25);o.heat=Math.max(0,o.heat-8);G.power-=10;
+      glog(`✓ ${a[0].toUpperCase()} +25 HP.`,'success');renderGame();
+    }, fromRemote);
+  },
+  restart: (a, fromRemote) => {
+    const o=G.offices[a[0]];if(!o){glog('Unknown office.','warn');return;}
+    if(G.power<20){glog('Need 20 power.','danger');return;}
+    glog(`[ RESTART ${a[0].toUpperCase()} ]`,'sys');
+    execProgress('RESTART',6,()=>{
+      o.online=true;o.isolated=false;o.health=Math.max(o.health,20);G.power-=20;
+      glog(`✓ ${a[0].toUpperCase()} online.`,'success');renderGame();
+    }, fromRemote);
+  },
+  isolate: (a, fromRemote) => {
+    const o=G.offices[a[0]];if(!o){glog('Unknown office.','warn');return;}
+    if(o.critical){triggerResult(false,'Cannot isolate HQ. System destabilized.');return;}
+    o.isolated=true;o.online=false;glog(`${a[0].toUpperCase()} isolated.`,'warn');renderGame();
+  },
+  assign: (a, fromRemote) => {
+    const[type,office]=a;
+    if(!G.crew[type]||!G.offices[office]){glog('Usage: assign [crew] [office]','warn');return;}
+    if(G.crew[type].total-G.crew[type].assigned<=0){glog(`No free ${type}.`,'warn');return;}
+    G.crew[type].assigned++;G.offices[office].crew[type]++;
+    glog(`1 ${type} → ${office.toUpperCase()}.`,'success');
+  },
+  unassign: (a, fromRemote) => {
+    const[type,office]=a;
+    if(!G.crew[type]||!G.offices[office]||G.offices[office].crew[type]<=0){glog('Invalid.','warn');return;}
+    G.crew[type].assigned--;G.offices[office].crew[type]--;
+    glog(`${type} removed from ${office.toUpperCase()}.`,'info');
+  },
+  overclock: (a) => {
+    const o=G.offices[a[0]];if(!o||!o.online){glog('Offline or unknown.','warn');return;}
+    o.load=Math.max(0,o.load-22);o.heat=Math.min(100,o.heat+26);
+    glog(`${a[0].toUpperCase()} overclocked.`,'warn');
+  },
+  reroute: (a) => {
+    const[f,to]=a;
+    if(!G.offices[f]||!G.offices[to]||!G.offices[to].online){glog('Invalid.','warn');return;}
+    G.offices[to].load=Math.min(100,G.offices[to].load+G.offices[f].load*.5);
+    G.offices[f].load=Math.max(10,G.offices[f].load*.5);
+    glog(`Rerouted ${f.toUpperCase()} → ${to.toUpperCase()}.`,'success');
+  },
+  'ddos-shield': (a, fromRemote) => {
+    if(G.power<25){glog('Need 25 power.','danger');return;}
+    glog('[ ANTI-DDOS SHIELD ]','sys');
+    execProgress('SHIELD',7,()=>{
+      G.threats=G.threats.filter(t=>t.type!=='ddos');
+      for(let k in G.offices)G.offices[k].load=Math.max(20,G.offices[k].load-25);
+      G.power-=25;glog('✓ All DDoS neutralized.','success');renderGame();
+    }, fromRemote);
+  },
+  override: () => triggerOverride(),
+  // PvP only
+  attack: (a) => {
+    if(MODE!=='pvp'){glog('PvP only.','warn');return;}
+    const targetName=a.join(' ');
+    const target=PLAYERS.find(p=>p.name.toLowerCase()===targetName.toLowerCase()&&p.id!==MY_ID);
+    if(!target){glog(`Player "${targetName}" not found. Check spelling.`,'warn');return;}
+    openAttackModal(target);
+  },
+};
+
+function applyRemoteCmd(raw, args) {
+  const cmd = raw.split(' ')[0];
+  if (CMDS[cmd]) CMDS[cmd](args || [], true);
+  renderGame();
+}
+
+// ═══════════════════════════════════════
+// PROGRESS BAR IN LOG
+// ═══════════════════════════════════════
+function execProgress(label, steps, onDone, fromRemote=false) {
+  const log = document.getElementById('shared-log');
+  const row = document.createElement('div');
+  row.className = 'gl';
+  row.innerHTML = `<span class="gl-time"></span><span class="gl-msg gl-progress">[ ${bar(0,steps)} 0% ]</span>`;
+  log.appendChild(row); log.scrollTop = log.scrollHeight;
+
+  // Broadcast progress to other players
+  let step = 0;
+  const iv = setInterval(() => {
+    step++;
+    const pct = Math.round((step/steps)*100);
+    row.querySelector('.gl-progress').textContent = `[ ${bar(step,steps)} ${pct}% ]`;
+    log.scrollTop = log.scrollHeight;
+    if (!fromRemote) wsend('game_event',{ event:'progress', data:{ label, pct }});
+    if (step >= steps) { clearInterval(iv); onDone(); }
+  }, 80);
+}
+
+function bar(step, total) {
+  const filled = Math.min(step, total);
+  return '█'.repeat(filled) + '░'.repeat(total - filled);
+}
+
+// ═══════════════════════════════════════
+// INPUT HANDLER
+// ═══════════════════════════════════════
+let typingTimeout;
+document.getElementById('cmd-inp').addEventListener('input', () => {
+  clearTimeout(typingTimeout);
+  broadcastTyping();
+  typingTimeout = setTimeout(() => {}, 100);
+});
+
+document.getElementById('cmd-inp').addEventListener('keydown', (e) => {
+  const inp = document.getElementById('cmd-inp');
+  if (e.key === 'Enter') {
+    const raw = inp.value.trim(); if (!raw) return;
+    G.cmdHistory.unshift(raw); G.cmdIdx = -1; inp.value = '';
+    document.getElementById('typing-area').innerHTML = '';
+
+    const myColor = playerColor(0); // me = index 0 always
+    glog(`▸ ${raw}`, 'cmd', MY_NAME, myColor);
+
+    const parts = raw.toLowerCase().split(/\s+/);
+    const cmd = parts[0]; const args = parts.slice(1);
+
+    if (CMDS[cmd]) {
+      CMDS[cmd](args, false);
+      // Broadcast to co-players
+      wsend('game_event', { event: 'cmd_run', data: { cmd, args }});
+    } else {
+      glog(`Unknown: ${cmd}. Type [help].`, 'warn');
+    }
+    renderGame();
+    broadcastOpponentState();
+  }
+  if (e.key === 'ArrowUp') { G.cmdIdx=Math.min(G.cmdIdx+1,G.cmdHistory.length-1); inp.value=G.cmdHistory[G.cmdIdx]||''; e.preventDefault(); }
+  if (e.key === 'ArrowDown'){ G.cmdIdx=Math.max(G.cmdIdx-1,-1); inp.value=G.cmdIdx===-1?'':G.cmdHistory[G.cmdIdx]; e.preventDefault(); }
+});
+
+// ═══════════════════════════════════════
+// GAME TICK
+// ═══════════════════════════════════════
+let gLoop, upInt;
+
+function startLoop() {
+  gLoop  = setInterval(tick, 1000);
+  upInt  = setInterval(updateUptime, 1000);
+}
+
+function tick() {
+  if (!G.running || G.gameover) return;
+  G.tick++;
+
+  // Heat / load
+  for (let k in G.offices) {
+    const o = G.offices[k]; if (!o.online || o.isolated) continue;
+    o.heat = Math.min(100, o.heat + (o.load/100)*2.2);
+    o.heat = Math.max(0, o.heat - o.crew.cooling*3.5);
+    if (o.crew.engineers > 0 && o.health < 100) o.health = Math.min(100, o.health + o.crew.engineers * 0.6);
+    if (o.heat >= 90) { o.health = Math.max(0, o.health - 3); }
+  }
+  G.heat = (G.offices.hq.heat + G.offices.ops.heat + G.offices.sec.heat) / 3;
+
+  // Power
+  let pd = 0.45; if (G.firewallOn) pd += 0.35;
+  for (let k in G.offices) if (G.offices[k].online) pd += 0.18;
+  G.power = Math.max(0, Math.min(100, G.power - pd + 0.55));
+
+  // Threat damage
+  G.threats.forEach(t => {
+    if (t.hidden) return;
+    const o = G.offices[t.office]; if (!o || !o.online) return;
+    if (t.type==='malware') o.health = Math.max(0, o.health - (1.8+t.severity));
+    if (t.type==='ddos')    o.load   = Math.min(100, o.load + 3);
+    if (t.type==='worm') {
+      o.health = Math.max(0, o.health - 1.2);
+      t.spreadTimer = (t.spreadTimer||0) + 1;
+      if (t.spreadTimer >= 12 && !t.spread) {
+        const keys = Object.keys(G.offices).filter(k2=>k2!==t.office);
+        const to = keys[Math.floor(Math.random()*keys.length)];
+        G.threats.push({ id:G.nextId++, type:'worm', name:tName('worm'), office:to, hidden:false, severity:t.severity, spreadTimer:0, spread:false });
+        t.spread = true;
+        glog(`🐛 ${t.name} spread to ${to.toUpperCase()}!`, 'danger');
+      }
+    }
+  });
+
+  // Office failures
+  for (let k in G.offices) {
+    const o = G.offices[k];
+    if (o.health <= 0 && o.online) {
+      o.online = false; o.health = 0;
+      glog(`💀 ${k.toUpperCase()} OFFLINE!`, 'danger');
+      if (o.critical) { triggerResult(false, 'HQ server failed. System collapsed.'); return; }
+    }
+  }
+
+  // Satisfaction / users / value
+  let sc = 0;
+  if (!G.offices.hq.online) sc -= 6;
+  if (!G.offices.ops.online) sc -= 3;
+  if (G.offices.ops.load > 80) sc -= 1.2;
+  if (G.offices.hq.health > 80) sc += 0.4;
+  G.satisfaction = Math.max(0, Math.min(100, G.satisfaction + sc));
+  if (G.satisfaction < 30) G.users = Math.max(0, G.users - Math.floor(Math.random()*8+3));
+  else if (G.satisfaction > 80 && G.tick%5===0) G.users = Math.min(8000, G.users + Math.floor(Math.random()*5+2));
+  G.income = Math.floor((G.users/100)*(G.satisfaction/100)*0.5);
+  G.companyValue = Math.max(0, G.companyValue + G.income - (G.threats.filter(t=>!t.hidden).length*2.5));
+  if (G.companyValue <= 0) { triggerResult(false, 'Company value hit $0.'); return; }
+
+  // Spawn threats
+  const diff = Math.min(1, G.tick/280);
+  if (Math.random() < 0.055 + diff*0.12) {
+    const types=['malware','ddos','worm'];
+    const type=types[Math.floor(Math.random()*types.length)];
+    const oKeys=Object.keys(G.offices);
+    const office=oKeys[Math.floor(Math.random()*oKeys.length)];
+    const hidden=Math.random()<(G.offices.sec.online?.28:.62);
+    const sev=Math.floor(diff*3)+1;
+    G.threats.push({id:G.nextId++,type,name:tName(type),office,hidden,severity:sev,spreadTimer:0,spread:false});
+    if (!hidden) glog(`⚠ ${type.toUpperCase()} "${tName(type)}" @ ${office.toUpperCase()} [sev:${sev}]`,'warn');
+    else glog('⚠ Anomalous signal detected. Run [scan].','warn');
+  }
+
+  // Random events
+  if (G.tick%28===0 && Math.random()<.4) {
+    const evs=[
+      {m:'Traffic spike: OPS load +18',fn:()=>{G.offices.ops.load=Math.min(100,G.offices.ops.load+18);}},
+      {m:'Power surge: -16',fn:()=>{G.power=Math.max(5,G.power-16);}},
+      {m:'User surge: +80',fn:()=>{G.users+=80;}},
+    ];
+    const ev=evs[Math.floor(Math.random()*evs.length)]; ev.fn();
+    glog(`📡 EVENT: ${ev.m}`,'info');
+  }
+
+  G.threats=G.threats.filter(t=>{const o=G.offices[t.office];return o&&!(t.type==='ddos'&&!o.online);});
+  renderGame();
+
+  // Broadcast my state to opponents every 5 ticks
+  if (G.tick%5===0) broadcastOpponentState();
+}
+
+function broadcastOpponentState() {
+  wsend('game_event', { event:'opponent_update', data:{ hp: G.myHp, value: G.companyValue }});
+}
+
+// ═══════════════════════════════════════
+// PvP: ATTACKS
+// ═══════════════════════════════════════
+const ATTACKS = [
+  { id:'ddos',    name:'DDoS FLOOD',  desc:'Overloads a random office',       cost:20, severity:2 },
+  { id:'malware', name:'MALWARE INJ', desc:'Slow health drain on their HQ',   cost:25, severity:2 },
+  { id:'worm',    name:'WORM DEPLOY', desc:'Spreads across their network',     cost:35, severity:3 },
+];
+
+let attackTarget = null;
+let selectedAttack = null;
+
+function openAttackModal(target) {
+  attackTarget = target;
+  selectedAttack = null;
+  document.getElementById('modal-target-name').textContent = target.name;
+  const opts = document.getElementById('attack-opts');
+  opts.innerHTML = ATTACKS.map(a => `
+    <div class="attack-opt" onclick="selectAttack('${a.id}',this)">
+      <div class="ao-name">${a.name}</div>
+      <div class="ao-desc">${a.desc}</div>
+      <div class="ao-cost">Power cost: ${a.cost}</div>
+    </div>
+  `).join('');
+  document.getElementById('attack-modal').classList.add('show');
+}
+
+function selectAttack(id, el) {
+  selectedAttack = ATTACKS.find(a=>a.id===id);
+  document.querySelectorAll('.attack-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function closeAttackModal() {
+  document.getElementById('attack-modal').classList.remove('show');
+  attackTarget = null; selectedAttack = null;
+}
+
+function fireAttack() {
+  if (!attackTarget || !selectedAttack) return;
+  if (G.power < selectedAttack.cost) { glog(`Need ${selectedAttack.cost} power to attack.`,'danger'); closeAttackModal(); return; }
+
+  G.power -= selectedAttack.cost;
+  glog(`⚔ Launching ${selectedAttack.name} on ${attackTarget.name}...`,'pvp');
+  execProgress('ATTACK',6,()=>{
+    wsend('game_event', {
+      event:'attack',
+      to: attackTarget.id,
+      data:{ type: selectedAttack.id, severity: selectedAttack.severity }
+    });
+    glog(`✓ ${selectedAttack.name} launched against ${attackTarget.name}.`,'pvp');
+    renderGame();
+  }, false);
+  closeAttackModal();
+}
+
+function receiveAttack(fromName, type, severity, color) {
+  const offices = Object.keys(G.offices);
+  const target = offices[Math.floor(Math.random()*offices.length)];
+  G.threats.push({ id:G.nextId++, type, name:tName(type), office:target, hidden:false, severity, spreadTimer:0, spread:false });
+
+  // Show alert
+  const alert = document.getElementById('incoming-alert');
+  alert.innerHTML = `⚔ INCOMING ATTACK FROM ${fromName.toUpperCase()}<br><span style="font-size:11px">${type.toUpperCase()} targeting ${target.toUpperCase()}</span>`;
+  alert.classList.add('show');
+  setTimeout(()=>alert.classList.remove('show'), 4000);
+
+  glog(`⚔ ATTACKED BY ${fromName}: ${type.toUpperCase()} in ${target.toUpperCase()}!`,'pvp');
+
+  // Reduce my HP (PvP HP bar)
+  G.myHp = Math.max(0, G.myHp - (severity * 8));
+  updateMyHP();
+  renderGame();
+
+  if (G.myHp <= 0) {
+    wsend('game_event', { event:'opponent_dead', data:{} });
+    triggerResult(false, `${fromName} delivered the killing blow.`);
+  }
+}
+
+function updateMyHP() {
+  const fill = document.getElementById('my-hp-fill');
+  const val  = document.getElementById('my-hp-val');
+  if (fill) fill.style.width = G.myHp + '%';
+  if (fill) fill.style.background = G.myHp < 30 ? 'var(--red)' : G.myHp < 60 ? 'var(--ember)' : 'var(--acid)';
+  if (val) val.textContent = G.myHp + '%';
+}
+
+function checkPvPWin() {
+  const alive = PLAYERS.filter(p => p.id !== MY_ID && (G.opponents[p.id]?.hp ?? 100) > 0);
+  if (alive.length === 0) triggerResult(true, 'All opponents eliminated. You own the network.');
+}
+
+// ═══════════════════════════════════════
+// MANUAL OVERRIDE
+// ═══════════════════════════════════════
+let overrideActive = false, overrideTmr = null;
+
+function triggerOverride() {
+  if (!G.running || G.gameover || overrideActive) return;
+  if (G.overrideCharges <= 0) { glog('No override charges.','danger'); return; }
+  if (G.power < 30) { glog('Need 30 power.','danger'); return; }
+  G.overrideCharges--;
+  G.power = Math.max(0, G.power - 30);
+  overrideActive = true;
+  clearInterval(gLoop); gLoop = setInterval(tick, 4000);
+
+  document.getElementById('override-bar').classList.add('active');
+  document.getElementById('override-status').textContent = `⚡ OVERRIDE ${G.overrideCharges}`;
+  glog('⚡ MANUAL OVERRIDE — 5 seconds of slow time','plasma');
+  wsend('game_event',{event:'cmd_run',data:{cmd:'override',args:[]}});
+
+  let s=5;
+  const cd=setInterval(()=>{s--;if(s<=0)clearInterval(cd);},1000);
+  overrideTmr = setTimeout(()=>{
+    overrideActive=false;
+    clearInterval(gLoop); gLoop=setInterval(tick,1000);
+    document.getElementById('override-bar').classList.remove('active');
+    G.power=Math.max(0,G.power-10); G.heat=Math.min(100,G.heat+15);
+    glog('Override ended.','sys'); renderGame();
+  },5000);
+}
+
+// ═══════════════════════════════════════
+// RESULT SCREEN
+// ═══════════════════════════════════════
+function triggerResult(win, reason) {
+  G.gameover = true; G.running = false;
+  clearInterval(gLoop); clearInterval(upInt);
+  if (overrideTmr) clearTimeout(overrideTmr);
+
+  const e = Math.floor((Date.now()-G.startTime)/1000);
+  document.getElementById('rs-up').textContent  = `${Math.floor(e/60).toString().padStart(2,'0')}:${(e%60).toString().padStart(2,'0')}`;
+  document.getElementById('rs-val').textContent = `$${G.companyValue}`;
+  document.getElementById('rs-usr').textContent = G.users;
+
+  const title = document.getElementById('result-title');
+  const sub   = document.getElementById('result-sub');
+  const pbtn  = document.getElementById('result-primary-btn');
+
+  if (win) {
+    title.textContent = 'VICTORY';
+    title.className   = 'win';
+    sub.textContent   = reason || 'System secured.';
+    pbtn.textContent  = 'BACK TO LOBBY';
+    pbtn.className    = 'rbtn rbtn-p win-btn';
+  } else {
+    title.textContent = 'SYSTEM\nFAILURE';
+    title.className   = 'lose';
+    sub.textContent   = reason || 'The system bled out.';
+    pbtn.className    = 'rbtn rbtn-p';
+  }
+  document.getElementById('result-screen').classList.add('show');
+}
+
+function leaveToLobby() { location.href = 'bleedon-lobby.html'; }
+function leaveToMenu()  { location.href = 'bleedon.html'; }
+function confirmLeave() { if (confirm('Leave the game?')) leaveToLobby(); }
+
+// ═══════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════
+function renderGame() { renderOffices(); renderResources(); renderCrew(); renderThreats(); }
+
+function renderOffices() {
+  const c = document.getElementById('g-offices'); c.innerHTML='';
+  for (let k in G.offices) {
+    const o = G.offices[k];
+    const sc = !o.online?'offline':o.health<30?'critical':o.health<60?'warning':'healthy';
+    const bc = !o.online?'bg-off':o.health<30?'bg-crit':o.health<60?'bg-warn':'bg-on';
+    const bt = !o.online?'OFF':o.health<30?'CRIT':o.health<60?'WARN':'ON';
+    const hc = o.health<30?'crit':o.health<60?'warn':'';
+    const tc = G.threats.filter(t=>!t.hidden&&t.office===k);
+    const cr = Object.entries(o.crew).filter(([,v])=>v>0).map(([k2,v])=>`${k2[0].toUpperCase()}:${v}`).join(' ');
+    c.innerHTML+=`<div class="blk ${sc}">
+      <div class="oc-hd"><span class="oc-nm">${o.label}</span><span class="oc-bg ${bc}">${bt}</span></div>
+      <div class="br"><span class="bl2">HP</span><div class="bt"><div class="bf bf-hp ${hc}" style="width:${o.health}%"></div></div><span class="bn">${o.health.toFixed(0)}</span></div>
+      <div class="br"><span class="bl2">LOAD</span><div class="bt"><div class="bf bf-ld" style="width:${o.load}%;${o.load>80?'background:var(--red);opacity:1':''}"></div></div><span class="bn">${o.load.toFixed(0)}</span></div>
+      <div class="br"><span class="bl2">HEAT</span><div class="bt"><div class="bf bf-ht" style="width:${o.heat}%"></div></div><span class="bn">${o.heat.toFixed(0)}</span></div>
+      ${tc.length?`<div class="oc-ext ext-t">⚠ ${tc.map(t=>`"${t.name}"`).join(', ')}</div>`:''}
+      ${cr?`<div class="oc-ext ext-c">crew: ${cr}</div>`:''}
+    </div>`;
+  }
+}
+
+function renderResources() {
+  const s=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  s('rv-pw', G.power.toFixed(0)+'%');
+  s('rv-ht', G.heat.toFixed(0)+'%');
+  s('rv-val','$'+G.companyValue);
+  s('rv-usr', G.users);
+  s('rv-sat', G.satisfaction.toFixed(0)+'%');
+}
+
+function renderCrew() {
+  const c=document.getElementById('g-crew');c.innerHTML='';
+  for(let k in G.crew){const cr=G.crew[k];c.innerHTML+=`<div class="cr-row"><span class="cr-n">${k}</span><span class="cr-f">${cr.total-cr.assigned}/${cr.total}</span></div>`;}
+}
+
+function renderThreats() {
+  const c=document.getElementById('g-threats');
+  const vis=G.threats.filter(t=>!t.hidden);const hid=G.threats.filter(t=>t.hidden);
+  if(!vis.length&&!hid.length){c.innerHTML='<span style="color:var(--ghost);font-size:9px">System clear.</span>';return;}
+  c.innerHTML='';
+  vis.forEach(t=>{c.innerHTML+=`<div class="th-row"><span class="thr-id">[${t.id}]</span> <span class="thr-nm">"${t.name}"</span> <span class="thr-loc">${t.office.toUpperCase()}</span></div>`;});
+  if(hid.length)c.innerHTML+=`<div class="th-row"><span class="thr-h">+${hid.length} hidden — [scan]</span></div>`;
+}
+
+function renderPlayerCards() {
+  const c=document.getElementById('rp-cards'); c.innerHTML='';
+  PLAYERS.forEach((p,i)=>{
+    const isMe = p.id===MY_ID;
+    const online = onlineMap[p.id] !== false;
+    const opp = G.opponents[p.id];
+    const hp = isMe ? G.myHp : (opp?.hp ?? 100);
+    const val = isMe ? G.companyValue : (opp?.value ?? '—');
+    const showHp = MODE==='pvp' && !isMe;
+    c.innerHTML+=`<div class="rp-card ${isMe?'me-card':''} ${online?'':'offline-card'}">
+      <div class="rpc-top">
+        <div class="rpc-avatar" style="background:${playerColor(i)}20;border:1px solid ${playerColor(i)}40">${playerAvatar(i)}</div>
+        <span class="rpc-name" style="color:${playerColor(i)}">${p.name}</span>
+        ${isMe?'<span class="rpc-you">YOU</span>':''}
+        ${p.id===HOST_ID?'<span class="rpc-host">HOST</span>':''}
+        <div class="rpc-online ${online?'on':'off'}"></div>
+      </div>
+      ${showHp?`
+        <div class="rpc-hp-wrap">
+          <div class="rpc-hp-label">SERVER HP</div>
+          <div class="rpc-hp-bar"><div class="rpc-hp-fill" style="width:${hp}%;background:${hp<30?'var(--red)':hp<60?'var(--ember)':'var(--acid)'}"></div></div>
+        </div>
+        <div class="rpc-stat">Value: $${val}</div>
+      `:''}
+      ${MODE==='pvp'&&!isMe&&online?`<button class="attack-btn visible" onclick="openAttackModal(${JSON.stringify(p)})">⚔ ATTACK</button>`:''}
+    </div>`;
+  });
+}
+
+function renderPills() {
+  const bar=document.getElementById('players-bar'); bar.innerHTML='';
+  PLAYERS.forEach((p,i)=>{
+    const isMe=p.id===MY_ID;
+    const col=playerColor(i);
+    const online=onlineMap[p.id]!==false;
+    bar.innerHTML+=`<div class="player-pill ${isMe?'me':''} ${online?'':'pill-offline'}">
+      <div class="pill-dot" data-id="${p.id}" style="background:${col}"></div>
+      <span class="pill-name" style="color:${col}">${p.name}</span>
+      ${isMe?'<span class="pill-you">YOU</span>':''}
+      ${MODE==='pvp'?`<span class="pill-hp ${G.myHp<30&&isMe?'danger':G.myHp<60&&isMe?'warn':''} visible">${isMe?G.myHp+'%':(G.opponents[p.id]?.hp??'?')+'%'}</span>`:''}
+    </div>`;
+  });
+}
+
+function updateUptime() {
+  if(!G.running) return;
+  const e=Math.floor((Date.now()-G.startTime)/1000);
+  const m=Math.floor(e/60).toString().padStart(2,'0');
+  const s=(e%60).toString().padStart(2,'0');
+  // No uptime in nav for mp — just internal tracking
+}
+
+// ═══════════════════════════════════════
+// LOG
+// ═══════════════════════════════════════
+function glog(msg, type='info', who=null, color=null) {
+  const log = document.getElementById('shared-log'); if (!log) return;
+  const now = new Date();
+  const ts  = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  const d   = document.createElement('div'); d.className='gl';
+  const whoHtml = who ? `<span class="gl-who" style="color:${color||'var(--mist)'}">[${who}]</span>` : '';
+  d.innerHTML=`<span class="gl-time">[${ts}]</span>${whoHtml}<span class="gl-msg ${type}">${msg}</span>`;
+  log.appendChild(d);
+  while(log.children.length>300) log.removeChild(log.firstChild);
+  log.scrollTop=log.scrollHeight;
+}
+
+// ═══════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════
+let HOST_ID = PLAYERS[0]?.id || MY_ID;
+
+// Set up player index map
+PLAYERS.forEach((p,i) => { playerIndex[p.id] = i; onlineMap[p.id] = true; });
+
+// If we came from lobby with no players param (direct URL / demo), add self
+if (PLAYERS.length === 0) {
+  PLAYERS = [{ id: MY_ID, name: MY_NAME }];
+  playerIndex[MY_ID] = 0;
+}
+
+// Nav
+document.getElementById('nav-room').textContent = ROOM;
+const modeBadge = document.getElementById('nav-mode');
+modeBadge.textContent = MODE==='pvp' ? 'PVP' : 'CO-OP';
+modeBadge.className = `tn-mode ${MODE==='pvp'?'mode-pvp':'mode-coop'}`;
+
+// My prompt colour = my player colour
+document.getElementById('my-prompt').style.color = playerColor(playerIndex[MY_ID]??0);
+
+// PvP-specific UI
+if (MODE === 'pvp') {
+  document.getElementById('my-hp-display').classList.add('visible');
+  document.getElementById('pvp-hint').style.display='inline';
+}
+
+// First logs
+glog(`Room ${ROOM} — ${MODE.toUpperCase()} mode — ${PLAYERS.length} player(s)`, 'sys');
+glog('Game started. All commands are shared with your team.', 'sys');
+if (MODE === 'pvp') {
+  glog('PvP enabled — use [attack <name>] or click ATTACK on a player card.', 'pvp');
+}
+
+// Render initial UI
+renderPlayerCards();
+renderPills();
+renderGame();
+
+// Crisis in 8s
+setTimeout(()=>{
+  if(!G.running) return;
+  glog('','sep');
+  glog('⚠ CRITICAL ALERT: Unknown intrusion in HQ — respond immediately!','danger');
+  glog('⚠ Multiple vectors active. Recommend [scan] + [firewall on]','warn');
+  glog('','sep');
+  G.threats.push({id:G.nextId++,type:'malware',name:tName('malware'),office:'hq',hidden:false,severity:2,spreadTimer:0,spread:false});
+  G.threats.push({id:G.nextId++,type:'ddos',name:tName('ddos'),office:'ops',hidden:true,severity:1,spreadTimer:0,spread:false});
+  renderGame();
+},8000);
+
+// Connect WS + start loop
+connectWS();
+startLoop();
+document.getElementById('cmd-inp').focus();
+</script>
+</body>
+</html>
